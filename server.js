@@ -1,5 +1,6 @@
 import app from './app.js'; // Importez la configuration de l'app
 import http from 'http';
+import { createTable } from './utils/database.js';
 
 const normalizePort = val => {
     const port = parseInt(val, 10);
