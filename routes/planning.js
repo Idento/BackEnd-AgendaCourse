@@ -1,13 +1,12 @@
 import express from 'express';
 import { Router } from 'express';
-import GetPlanning from '../controllers/planning';
-import AddPlanning from '../controllers/planning';
-import DeletePlanning from '../controllers/planning';
+import { GetPlanning, AddPlanning, DeletePlanning } from '../controllers/planningController.js';
+
 
 const router = Router();
 
-router.get('/Plannings', GetPlanning);
-router.post('/Plannings/add', AddPlanning);
-router.delete('/Plannings/delete', DeletePlanning);
+router.get('/get', GetPlanning);
+router.post('/add', AddPlanning);
+router.delete('/delete', DeletePlanning);
 
 export default router;

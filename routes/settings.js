@@ -1,13 +1,13 @@
 import express, { Router } from 'express';
-import GetDrivers from '../controllers/settings';
-import ModifyDrivers from '../controllers/settings';
-import DeleteDrivers from '../controllers/settings';
+import { GetDrivers, ModifyDrivers, DeleteDrivers, AddDrivers } from '../controllers/settingsController.js';
+
 
 
 const router = Router();
 
-router.get('/Parametres', GetDrivers);
-router.post('/Parametres/modify', ModifyDrivers);
-router.delete('/Parametres/delete', DeleteDrivers);
+router.get('/get', GetDrivers);
+router.post('/add', AddDrivers);
+router.post('/modify', ModifyDrivers);
+router.delete('/delete', DeleteDrivers);
 
 export default router;

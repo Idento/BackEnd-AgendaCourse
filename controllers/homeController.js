@@ -1,52 +1,133 @@
-import { format, parse } from 'date-fns';
+import { addDays, format, parse } from 'date-fns';
 import Database from 'better-sqlite3';
+import { frequentHomeUpdate } from '../utils/frequentUpdate.js';
+import { checkAll } from '../utils/checkAll.js';
 
-module.exports.GetHomeData = function (req, res) {
-    const date = format(new Date(), 'dd/MM/yyyy');
-    const db = new Database('../Database.db');
-    const data = db.prepare('SELECT * FROM planning WHERE date = ?').all()
-    db.close();
-    res.status(200).json(data);
+export const GetHomeData = function (req, res) {
+    const data = frequentHomeUpdate();
+    if (data.length === 0) {
+        res.status(200).json([]);
+    } else {
+        res.status(200).json(data);
+    }
 }
 
-module.exports.AddData = async function (req, res) {
+export const DataToAdd = async function (req, res) {
     const { data } = req.body;
-    const db = new Database('../Database.db');
+    const db = new Database('Database.db');
     const date = format(new Date(), 'dd/MM/yyyy');
-    const plannings = db.prepare('SELECT * FROM planning WHERE date = ?').all(date);
+    let plannings = [];
+    let error = false;
+    let lastID = [];
+    try { // Fetch the already existing data
+        plannings = db.prepare('SELECT * FROM planning WHERE date = ?').all(date);
+    } catch (err) {
+        console.error('Error while fetching data: ', err);
+    }
     for (let i = 0; i < data.length; i++) {
-        const { id, driver_id, client_name, start_time, return_time, note, destination, long_distance } = data[i];
+        const { id, driver_id, client_name, start_time, return_time, note, destination, long_distance, recurrence_frequency } = data[i];
         if (plannings.some(planning => planning.id === id)) {
+            const line = plannings.find(planning => planning.id === id);
+            let reccurence_id;
+            const isExisting = db.prepare('SELECT * FROM recurrence WHERE id = ?').all(line.recurrence_id);
+            if (isExisting.length > 0 && recurrence_frequency !== isExisting[0].frequency && recurrence_frequency > 0) { // If the recurrence is not existing
+                try {
+                    db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
+                    const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
+                    db.prepare('UPDATE recurrence SET frequency = ?, start_date = ?, next_day = ? WHERE id= ?').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'), isExisting[0].id);
+                    reccurence_id = isExisting[0].id;
+                } catch (err) {
+                    console.error('Error while adding recurrence: ', err);
+                    res.status(500).send('Internal server error');
+                    error = true;
+                    break;
+                }
+            } else if (recurrence_frequency === 0) {
+                reccurence_id = 0;
+                db.prepare('DELETE FROM recurrence WHERE id = ?').run(line.recurrence_id);
+                db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
+            } else if (isExisting.length === 0) {
+                console.log('test');
+                const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
+                const newReccurence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
+                reccurence_id = newReccurence.lastInsertRowid;
+            }
             try {
-                db.prepare(`UPDATE planning SET driver_id = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ? WHERE id = ?`).run(driver_id, client_name, start_time, return_time, note, destination, long_distance, id);
+                db.prepare(`UPDATE planning SET driver_id = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(driver_id, client_name, start_time, return_time, note, destination, long_distance, reccurence_id, id);
             } catch (err) {
                 console.error('Error while updating data: ', err);
                 res.status(500).send('Internal server error');
+                break;
             }
         } else {
+            let reccurence_id;
+            console.log('recurrence_frequency: ', recurrence_frequency);
+            if (recurrence_frequency > 0) {
+                try {
+                    const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
+                    const recurrence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
+                    reccurence_id = recurrence.lastInsertRowid;
+                } catch (err) {
+                    console.error('Error while adding recurrence: ', err);
+                    res.status(500).send('Internal server error');
+                    error = true;
+                    break;
+                }
+            }
             try {
-                db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance);
+                if (recurrence_frequency === 0) {
+                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance);
+                    lastID.push(addTransaction.lastInsertRowid);
+                } else {
+                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance, reccurence_id);
+                    lastID.push(addTransaction.lastInsertRowid);
+                }
             }
             catch (err) {
                 console.error('Error while adding data: ', err);
                 res.status(500).send('Internal server error');
+                error = true;
+                break;
             }
         }
+    }
+    if (error) {
         db.close();
-        res.status(200).send('Data added');
+        return;
+    }
+    checkAll();
+    db.close();
+    console.log('Data added');
+    if (lastID && !error) {
+        res.status(200).json({ id: lastID });
+    } else {
+        if (!error) {
+            res.status(200).send('Data added');
+        }
     }
 }
 
-module.exports.DeleteData = function (req, res) {
-    const data = req.body;
-    const db = new Database('../Database.db');
+export const DeleteData = function (req, res) {
+    const { data } = req.body;
+    const db = new Database('Database.db');
+    let error = false;
     for (let i = 0; i < data.length; i++) {
         try {
-            db.prepare('DELETE FROM planning WHERE id = ?').run(data[i]);
+            const line = db.prepare('SELECT * FROM planning WHERE id = ?').all(data[i].id);
+            db.prepare('DELETE FROM planning WHERE id = ?').run(data[i].id);
+            if (data[i].deleteRecurrence) {
+                db.prepare('DELETE FROM recurrence WHERE id = ?').run(line[0].recurrence_id);
+                db.prepare('DELETE FROM planning WHERE recurrence_id = ?').run(line[0].recurrence_id);
+            }
         } catch (err) {
             console.error('Error while deleting data: ', err);
             res.status(500).send('Internal server error');
+            break;
         }
+    }
+    if (error) {
+        db.close();
+        return;
     }
     db.close();
     res.status(200).send('Data deleted');

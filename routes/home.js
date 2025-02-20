@@ -1,14 +1,13 @@
 import express from 'express';
 import { Router } from 'express';
-import GetHomeData from '../controllers/home';
-import AddData from '../controllers/home';
-import DeleteData from '../controllers/home';
+import { GetHomeData, DataToAdd, DeleteData } from '../controllers/homeController.js';
+
 
 
 const router = Router();
 
 router.get('/', GetHomeData);
-router.post('/addData', AddData);
+router.post('/addData', DataToAdd);
 router.delete('/deleteData', DeleteData);
 
 export default router;

@@ -1,6 +1,8 @@
 import app from './app.js'; // Importez la configuration de l'app
 import http from 'http';
-import { createTable } from './utils/database.js';
+import { Server as SocketIo } from 'socket.io';
+import { frequentHomeUpdate, frequentPlanningUpdate } from './utils/frequentUpdate.js';
+import { checkAll } from './utils/checkAll.js';
 
 const normalizePort = val => {
     const port = parseInt(val, 10);
@@ -36,8 +38,47 @@ const errorHandler = error => {
     }
 };
 
-
 const server = http.createServer(app);
+const io = new SocketIo(server, { cors: { origin: '*' } });
+
+
+io.on('connection', (socket) => {
+    console.log('a user connected');
+
+    socket.intervals = {};
+
+    socket.on('pageLocation', (data) => {
+        clearInterval(socket.intervals['homeUpdate']);
+        clearInterval(socket.intervals['planningUpdate']);
+
+        if (data === 'home') {
+            socket.emit('homeDataUpdate', frequentHomeUpdate());
+            console.log('ajout de l\'intervalle homeUpdate');
+
+            socket.intervals['homeDataUpdate'] = setInterval(() => {
+                const data = frequentHomeUpdate();
+                console.log('homeDataUpdate');
+                socket.emit('homeDataUpdate', data);
+            }, 60000);
+
+        } else if (data === 'planning') {
+            socket.emit('planningDataUpdate', frequentPlanningUpdate());
+            socket.intervals['planningUpdate'] = setInterval(() => {
+                const data = frequentPlanningUpdate();
+                socket.emit('planningDataUpdate', data);
+            }, 60000);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('user disconnected');
+        clearInterval(socket.intervals['homeDataUpdate']);
+        console.log('homeUpdate cleared');
+        clearInterval(socket.intervals['planningUpdate']);
+    });
+});
+
+checkAll();
 
 server.on('error', errorHandler);
 server.on('listening', () => {
@@ -45,6 +86,5 @@ server.on('listening', () => {
     const bind = typeof address === 'string' ? 'pipe ' + address : 'port ' + port;
     console.log('Listening on ' + bind);
 });
-
 
 server.listen(port);
