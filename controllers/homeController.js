@@ -2,6 +2,7 @@ import { addDays, format, parse } from 'date-fns';
 import Database from 'better-sqlite3';
 import { frequentHomeUpdate } from '../utils/frequentUpdate.js';
 import { checkAll } from '../utils/checkAll.js';
+import { fr } from 'date-fns/locale';
 
 export const GetHomeData = function (req, res) {
     const data = frequentHomeUpdate();
@@ -14,8 +15,9 @@ export const GetHomeData = function (req, res) {
 
 export const DataToAdd = async function (req, res) {
     const { data } = req.body;
+    console.log(data);
     const db = new Database('Database.db');
-    const date = format(new Date(), 'dd/MM/yyyy');
+    const date = format(new Date(), 'dd/MM/yyyy', { locale: fr });
     let plannings = [];
     let error = false;
     let lastID = [];
@@ -30,6 +32,7 @@ export const DataToAdd = async function (req, res) {
             const line = plannings.find(planning => planning.id === id);
             let reccurence_id;
             const isExisting = db.prepare('SELECT * FROM recurrence WHERE id = ?').all(line.recurrence_id);
+            console.log('isExisting: ', isExisting);
             if (isExisting.length > 0 && recurrence_frequency !== isExisting[0].frequency && recurrence_frequency > 0) { // If the recurrence is not existing
                 try {
                     db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
@@ -42,18 +45,20 @@ export const DataToAdd = async function (req, res) {
                     error = true;
                     break;
                 }
-            } else if (recurrence_frequency === 0) {
+            } else if (isExisting > 0 && recurrence_frequency === 0) {
                 reccurence_id = 0;
                 db.prepare('DELETE FROM recurrence WHERE id = ?').run(line.recurrence_id);
                 db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
-            } else if (isExisting.length === 0) {
+            } else if (isExisting.length === 0 && recurrence_frequency > 0) {
                 console.log('test');
-                const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
+                const parsedDate = parse(date, 'dd/MM/yyyy', new Date(), { timeZone: timezone });
+                const nextDate = addDays(parsedDate, recurrence_frequency);
+                console.log('nextDate: ', nextDate);
                 const newReccurence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
                 reccurence_id = newReccurence.lastInsertRowid;
             }
             try {
-                db.prepare(`UPDATE planning SET driver_id = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(driver_id, client_name, start_time, return_time, note, destination, long_distance, reccurence_id, id);
+                db.prepare(`UPDATE planning SET driver_id = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(parseInt(driver_id), client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id, id);
             } catch (err) {
                 console.error('Error while updating data: ', err);
                 res.status(500).send('Internal server error');
@@ -61,10 +66,13 @@ export const DataToAdd = async function (req, res) {
             }
         } else {
             let reccurence_id;
+            console.log(date);
             console.log('recurrence_frequency: ', recurrence_frequency);
             if (recurrence_frequency > 0) {
                 try {
-                    const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
+                    const parsedDate = parse(date, 'dd/MM/yyyy', new Date(), { timeZone: timezone });
+                    const nextDate = addDays(parsedDate, parseInt(recurrence_frequency));
+                    console.log('nextDate: ', nextDate, '\n', parsedDate);
                     const recurrence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
                     reccurence_id = recurrence.lastInsertRowid;
                 } catch (err) {
@@ -76,10 +84,10 @@ export const DataToAdd = async function (req, res) {
             }
             try {
                 if (recurrence_frequency === 0) {
-                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance);
+                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(parseInt(driver_id), date, client_name, start_time, return_time, note, destination, `${long_distance}`);
                     lastID.push(addTransaction.lastInsertRowid);
                 } else {
-                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance, reccurence_id);
+                    const addTransaction = db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(parseInt(driver_id), date, client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id);
                     lastID.push(addTransaction.lastInsertRowid);
                 }
             }
@@ -109,6 +117,7 @@ export const DataToAdd = async function (req, res) {
 
 export const DeleteData = function (req, res) {
     const { data } = req.body;
+    console.log(data);
     const db = new Database('Database.db');
     let error = false;
     for (let i = 0; i < data.length; i++) {
