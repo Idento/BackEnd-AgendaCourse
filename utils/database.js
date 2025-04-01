@@ -19,7 +19,7 @@ export function createTable() {
     )`).run();
     db.prepare(`CREATE TABLE IF NOT EXISTS recurrence (
         id INTEGER PRIMARY KEY, 
-        frequency INTEGER,
+        frequency TEXT,
         start_date TEXT,
         next_day TEXT
         )`).run();

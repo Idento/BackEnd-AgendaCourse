@@ -2,16 +2,30 @@ import Database from "better-sqlite3";
 import { format, parse, addDays } from "date-fns";
 import { retrieveDate } from "../utils/retrieveDate.js";
 import { checkAll } from "../utils/checkAll.js";
+import { fr } from "date-fns/locale";
+import { checkNextDate } from "../utils/checkNextDate.js";
 
 
 export const GetPlanning = function (req, res) {
     let allWeekDays = retrieveDate();
     const db = new Database('Database.db');
     let error = false
+    let drivers;
+    try {
+        drivers = { drivers: db.prepare('SELECT * FROM driver').all() };
+    } catch (err) {
+        console.error('Error while fetching drivers: ', err);
+        db.close();
+        res.status(500).send('Internal server error');
+        return;
+    }
     for (let i = 0; i < allWeekDays.length; i++) {
         try {
-            const data = db.prepare('SELECT * FROM planning WHERE date = ?').all(allWeekDays[i]);
-            allWeekDays[i] = { date: allWeekDays[i], data }
+            const data = db.prepare(`SELECT p.*, r.frequency
+                            FROM planning p
+                            LEFT JOIN recurrence r ON p.recurrence_id = r.id
+                            WHERE p.date = ?`).all(allWeekDays[i]);
+            allWeekDays[i] = { date: allWeekDays[i], data: [...data, drivers] }
         } catch (err) {
             console.error('Error while fetching planning: ', err);
             res.status(500).send('Internal server error');
@@ -29,56 +43,35 @@ export const GetPlanning = function (req, res) {
 
 export const AddPlanning = function (req, res) {
     const { alldata } = req.body;
-    console.log('alldata: ', alldata);
     const db = new Database('Database.db');
     let allWeekDays = retrieveDate();
     let ids = [];
     let error = false;
     let datadb = [];
-    for (let i = 0; i < allWeekDays.length; i++) { // Fetch all the data from the database
-        try {
-            const data = db.prepare('SELECT * FROM planning WHERE date = ?').all(allWeekDays[i]);
-            datadb = [...datadb, ...data]
-            for (let j = 0; j < data.length; j++) {
-                ids.push(data[j].id)
-            }
-        } catch (err) {
-            console.error('Error while fetching planning: ', err);
-        }
+    try {
+        const data = db.prepare('SELECT * FROM planning WHERE date IN (' + allWeekDays.map(() => '?').join(',') + ')').all(...allWeekDays);
+        datadb = [...datadb, ...data];
+        ids = data.map(item => item.id);
+    } catch (err) {
+        console.error('Error while fetching planning: ', err);
+        error = true;
     }
     for (let i = 0; i < alldata.length; i++) {
-        const { id, driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_frequency } = alldata[i]; // Destructure the data
+        const { id, driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id, frequency } = alldata[i]; // Destructure the data
+        const frequencyFormated = typeof frequency === 'string' ? JSON.parse(frequency) : typeof frequency === 'number' ? [frequency] : frequency; // Parse the frequency
         let reccurence_id = null; // Initialize the recurrence id
         if (ids.includes(id)) { // If the id is already existing
             const actualLine = datadb.filter((item) => item.id === id); // Get the actual line
-            const isExisting = db.prepare('SELECT * FROM recurrence WHERE id = ?').all(actualLine[0].recurrence_id);
-            if (isExisting.length > 0 && recurrence_frequency !== isExisting.frequency && recurrence_frequency > 0) { // If the recurrence is not existing
-                try { // Add the new recurrence
-                    const date = actualLine[0].date;
-                    db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
-                    const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
-                    db.prepare('UPDATE recurrence SET frequency = ?, start_date = ?, next_day = ? WHERE id= ?').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'), isExisting[0].id);
-                    reccurence_id = isExisting[0].id;
-                } catch (err) {
-                    console.error('Error while adding recurrence: ', err);
-                    res.status(500).send('Internal server error');
-                    break;
-                }
-            } else if (isExisting.length > 0 && recurrence_frequency === 0) { // If the recurrence is existing
-                db.prepare('DELETE FROM recurrence WHERE id = ?').run(actualLine[0].recurrence_id);
-                db.prepare('DELETE FROM planning WHERE recurrence_id = ? AND date = ?').run(isExisting[0].id, isExisting[0].next_day);
-                reccurence_id = 0;
-            } else if (isExisting.length === 0) {
-                const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
-                const newReccurence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
-                reccurence_id = newReccurence.lastInsertRowid;
+            console.log('actualLine: ', actualLine);
+            console.log(date);
+            const oldFrequency = db.prepare('SELECT frequency FROM recurrence WHERE id = ?').get(actualLine[0].recurrence_id);
+            console.log('oldFrequency: ', oldFrequency);
+            if (oldFrequency && oldFrequency.frequency !== frequency.toString()) {
+                const formatRecurrence = recurrence_id === null ? 0 : recurrence_id;
+                reccurence_id = checkNextDate(date, frequencyFormated, formatRecurrence, id);
             }
             try {
-                if (!reccurence_id) {
-                    db.prepare(`UPDATE planning SET driver_id = ?, date = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ? WHERE id = ?`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance, id);
-                } else {
-                    db.prepare(`UPDATE planning SET driver_id = ?, date = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance, reccurence_id, id);
-                }
+                db.prepare(`UPDATE planning SET driver_id = ?, date = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(parseInt(driver_id), date, client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id, id);
             } catch (err) {
                 console.error('Error while updating planning: ', err);
                 res.status(500).send('Internal server error');
@@ -87,25 +80,13 @@ export const AddPlanning = function (req, res) {
             }
         } else {
             let reccurence_id;
-            console.log('recurrence_frequency: ', recurrence_frequency);
-            if (recurrence_frequency > 0) {
-                try {
-                    const nextDate = addDays(parse(date, 'dd/MM/yyyy', new Date()), recurrence_frequency);
-                    const recurrence = db.prepare('INSERT INTO recurrence (frequency, start_date, next_day) VALUES (?, ?, ?)').run(recurrence_frequency, date, format(nextDate, 'dd/MM/yyyy'));
-                    reccurence_id = recurrence.lastInsertRowid;
-                } catch (err) {
-                    console.error('Error while adding recurrence: ', err);
-                    res.status(500).send('Internal server error');
-                    error = true
-                    break;
-                }
-            }
+            console.log('date: ', date);
+
+            reccurence_id = checkNextDate(date, frequencyFormated, 0, 0);
             try {
-                if (reccurence_id) {
-                    db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance, reccurence_id);
-                } else {
-                    db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(driver_id, date, client_name, start_time, return_time, note, destination, long_distance);
-                }
+
+                db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(parseInt(driver_id), date, client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id);
+
             } catch (err) {
                 console.error('Error while adding planning: ', err);
                 res.status(500).send('Internal server error');
@@ -124,7 +105,7 @@ export const AddPlanning = function (req, res) {
 }
 
 export const DeletePlanning = function (req, res) {
-    const data = req.body;
+    const { data } = req.body;
     const db = new Database('Database.db');
     let error = false
     for (let i = 0; i < data.length; i++) {

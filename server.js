@@ -1,4 +1,4 @@
-import app from './app.js'; // Importez la configuration de l'app
+import app, { corsOptions, sessionMiddleware } from './app.js'; // Importez la configuration de l'app
 import http from 'http';
 import { Server as SocketIo } from 'socket.io';
 import { frequentHomeUpdate, frequentPlanningUpdate } from './utils/frequentUpdate.js';
@@ -39,43 +39,48 @@ const errorHandler = error => {
 };
 
 const server = http.createServer(app);
-const io = new SocketIo(server, { cors: { origin: '*' } });
+const io = new SocketIo(server, {
+    cors: {
+        origin: 'http://localhost:5173',
+        methods: ['GET', 'POST', 'PUT', 'DELETE'],
+        allowedHeaders: ['Content-Type'],
+        credentials: true
+    }
+});
 
-
+io.use((socket, next) => {
+    sessionMiddleware(socket.request, {}, next);
+});
 io.on('connection', (socket) => {
+    const session = socket.request.session;
     console.log('a user connected');
 
-    socket.intervals = {};
+    if (session && session.user) {
 
-    socket.on('pageLocation', (data) => {
-        clearInterval(socket.intervals['homeUpdate']);
-        clearInterval(socket.intervals['planningUpdate']);
+        socket.intervals = {};
 
-        if (data === 'home') {
-            socket.emit('homeDataUpdate', frequentHomeUpdate());
-            console.log('ajout de l\'intervalle homeUpdate');
+        socket.on('pageLocation', (data) => {
+            clearInterval(socket.intervals['homeUpdate']);
 
-            socket.intervals['homeDataUpdate'] = setInterval(() => {
-                const data = frequentHomeUpdate();
-                console.log('homeDataUpdate');
-                socket.emit('homeDataUpdate', data);
-            }, 60000);
+            if (data === 'home') {
+                socket.emit('homeDataUpdate', frequentHomeUpdate());
+                console.log('ajout de l\'intervalle homeUpdate');
 
-        } else if (data === 'planning') {
-            socket.emit('planningDataUpdate', frequentPlanningUpdate());
-            socket.intervals['planningUpdate'] = setInterval(() => {
-                const data = frequentPlanningUpdate();
-                socket.emit('planningDataUpdate', data);
-            }, 60000);
-        }
-    });
+                socket.intervals['homeDataUpdate'] = setInterval(() => {
+                    const data = frequentHomeUpdate();
+                    console.log('homeDataUpdate');
+                    socket.emit('homeDataUpdate', data);
+                }, 60000);
+            }
+        });
 
-    socket.on('disconnect', () => {
-        console.log('user disconnected');
-        clearInterval(socket.intervals['homeDataUpdate']);
-        console.log('homeUpdate cleared');
-        clearInterval(socket.intervals['planningUpdate']);
-    });
+        socket.on('disconnect', () => {
+            console.log('user disconnected');
+            clearInterval(socket.intervals['homeDataUpdate']);
+            console.log('homeUpdate cleared');
+            clearInterval(socket.intervals['planningUpdate']);
+        });
+    }
 });
 
 checkAll();

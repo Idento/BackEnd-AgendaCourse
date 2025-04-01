@@ -26,6 +26,7 @@ export function frequentHomeUpdate() {
         return;
     }
     db.close();
+
     return data;
 }
 
@@ -33,10 +34,18 @@ export function frequentPlanningUpdate() {
     let allWeekDays = retrieveDate();
     const db = new Database('Database.db');
     let error = false
+    let drivers;
+    try {
+        drivers = { drivers: db.prepare('SELECT * FROM driver').all() };
+    } catch (err) {
+        console.error('Error while fetching drivers: ', err);
+        db.close();
+        return;
+    }
     for (let i = 0; i < allWeekDays.length; i++) {
         try {
             const data = db.prepare('SELECT * FROM planning WHERE date = ?').all(allWeekDays[i]);
-            allWeekDays[i] = { date: allWeekDays[i], data }
+            allWeekDays[i] = { date: allWeekDays[i], data: [...data, drivers] }
         } catch (err) {
             console.error('Error while fetching planning: ', err);
             res.status(500).send('Internal server error');
