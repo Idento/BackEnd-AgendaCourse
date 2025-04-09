@@ -112,7 +112,20 @@ export const DeletePlanning = function (req, res) {
         try {
             console.log(data[i].id);
             const line = db.prepare('SELECT * FROM planning WHERE id = ?').all(data[i].id);
+            console.log('line: ', line);
+            if (line[0].recurrence_id !== null) {
+                const recurrence = db.prepare('SELECT * FROM recurrence WHERE id = ?').all(line[0].recurrence_id);
+                console.log('date compare: ', line[0].date, recurrence[0].next_day);
+
+                if (line[0].date === recurrence[0].next_day) {
+                    const frequencyFormated = typeof recurrence[0].frequency === 'string' ? JSON.parse(recurrence[0].frequency) : typeof recurrence[0].frequency === 'number' ? [recurrence[0].frequency] : recurrence[0].frequency;
+                    console.log('checkNextDate: ', line[0].date, frequencyFormated, line[0].recurrence_id, line[0].id);
+                    checkNextDate(recurrence[0].start_date, frequencyFormated, line[0].recurrence_id, line[0].id, true);
+                    checkAll();
+                }
+            }
             db.prepare('DELETE FROM planning WHERE id = ?').run(data[i].id);
+            console.log(data[i].deleteRecurrence);
             if (data[i].deleteRecurrence) {
                 db.prepare('DELETE FROM recurrence WHERE id = ?').run(line[0].recurrence_id);
                 db.prepare('DELETE FROM planning WHERE recurrence_id = ?').run(line[0].recurrence_id);

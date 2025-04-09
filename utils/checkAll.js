@@ -91,6 +91,9 @@ export function checkAll() {
                             db.prepare('INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(planning[0].driver_id, format(nextDay(now), 'dd/MM/yyyy'), planning[0].client_name, planning[0].start_time, planning[0].return_time, planning[0].note, planning[0].destination, planning[0].long_distance, recurrence.id);
                         } catch (err) {
                             console.error('Error while adding planning: ', err);
+                            if (planning.length === 0 || planning === undefined) {
+                                db.prepare('DELETE FROM recurrence WHERE id = ?').run(recurrence.id);
+                            }
                         }
                     }
                     const afterNext = db.prepare('SELECT id, date FROM planning WHERE recurrence_id = ?').all(recurrence.id);

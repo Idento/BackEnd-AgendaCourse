@@ -4,7 +4,7 @@ import { fr } from 'date-fns/locale';
 import { toDate } from 'date-fns-tz';
 
 
-export function checkNextDate(date, recurrence, id = 0, planningId) {
+export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = false) {
     const nextDateByNumber = {
         1: nextMonday,
         2: nextTuesday,
@@ -23,7 +23,10 @@ export function checkNextDate(date, recurrence, id = 0, planningId) {
         const planning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(id);
         const parseStartDate = parse(recurrenceData.start_date, 'dd/MM/yyyy', new Date().toLocaleDateString(), { locale: fr });
         if (recurrence.length === 1) {
-            const nextDate = nextDateByNumber[recurrence[0]](todayDate);
+            let nextDate = nextDateByNumber[recurrence[0]](todayDate);
+            if (skipNext) {
+                nextDate = nextDateByNumber[recurrence[0]](nextDate);
+            }
             const formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
             if (oldDate) {
                 db.prepare('UPDATE planning SET date = ? WHERE recurrence_id = ? AND date = ?').run(formatedNextDate, id, recurrenceData.next_day);
@@ -46,6 +49,11 @@ export function checkNextDate(date, recurrence, id = 0, planningId) {
             }
             nextDates.sort((a, b) => a[Object.keys(a)[0]] - b[Object.keys(b)[0]]);
             let minKey = Object.keys(nextDates[0])[0];
+
+            if (skipNext) {
+                minKey = Object.keys(nextDates[1])[0];
+            }
+
             const nextDate = nextDateByNumber[minKey](todayDate);
             const formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
             if (parseStartDate < now && parsedDate > now) {

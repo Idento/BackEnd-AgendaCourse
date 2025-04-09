@@ -18,7 +18,6 @@ export const GetHomeData = function (req, res) {
 
 export const DataToAdd = async function (req, res) {
     const { data } = req.body;
-    console.log('datatoadd:' + data);
     const db = new Database('Database.db');
     const date = format(new Date(), 'dd/MM/yyyy', { locale: fr });
     let plannings = [];
