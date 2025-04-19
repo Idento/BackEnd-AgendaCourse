@@ -19,6 +19,6 @@ router.post('/changePassword', isAuthentified, changePassword);
 router.post('/regeneratePassword', isAuthAndAdmin, regenPassword);
 router.post('/addAccount', isAuthAndAdmin, createUser);
 router.delete('/delete', isAuthentified, DeleteDrivers);
-router.delete('/deleteAccount', isAuthentified, DeleteAccount);
+router.delete('/deleteAccount', isAuthAndAdmin, DeleteAccount);
 
 export default router;

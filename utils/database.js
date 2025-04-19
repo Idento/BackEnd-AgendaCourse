@@ -23,5 +23,14 @@ export function createTable() {
         start_date TEXT,
         next_day TEXT
         )`).run();
+    db.prepare(`CREATE TABLE IF NOT EXISTS recurrence_excludedays (
+        id INTEGER PRIMARY KEY, 
+        recurrence_id INTEGER,
+        date TEXT
+    )`).run();
+    db.prepare(`CREATE TABLE IF NOT EXISTS notes (
+        date TEXT PRIMARY KEY,
+        note TEXT
+    )`).run();
     db.close();
 }

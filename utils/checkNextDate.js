@@ -1,16 +1,18 @@
 import Database from "better-sqlite3";
-import { format, parse, nextMonday, nextTuesday, nextWednesday, nextThursday, nextFriday, getDay } from 'date-fns';
+import { format, parse, nextMonday, nextTuesday, nextWednesday, nextThursday, nextFriday, getDay, nextSaturday, nextSunday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toDate } from 'date-fns-tz';
 
 
-export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = false) {
+export function checkNextDate(date, recurrence, id = 0, planningId) {
     const nextDateByNumber = {
         1: nextMonday,
         2: nextTuesday,
         3: nextWednesday,
         4: nextThursday,
-        5: nextFriday
+        5: nextFriday,
+        6: nextSaturday,
+        0: nextSunday
     }
     const db = new Database("Database.db");
     const parsedDate = parse(date, 'dd/MM/yyyy', new Date(), { locale: fr });
@@ -22,15 +24,12 @@ export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = f
         const oldDate = db.prepare('SELECT * FROM planning WHERE recurrence_id = ? AND date = ?').get(id, recurrenceData.next_day);
         const planning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(id);
         const parseStartDate = parse(recurrenceData.start_date, 'dd/MM/yyyy', new Date().toLocaleDateString(), { locale: fr });
+        const excludedDays = db.prepare('SELECT * FROM recurrence_excludedays WHERE recurrence_id = ?').all(id);
+        console.log(excludedDays);
         if (recurrence.length === 1) {
             let nextDate = nextDateByNumber[recurrence[0]](todayDate);
-            if (skipNext) {
-                nextDate = nextDateByNumber[recurrence[0]](nextDate);
-            }
+
             const formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
-            if (oldDate) {
-                db.prepare('UPDATE planning SET date = ? WHERE recurrence_id = ? AND date = ?').run(formatedNextDate, id, recurrenceData.next_day);
-            }
             if (parseStartDate < now && parsedDate > now) {
                 db.prepare('UPDATE recurrence SET frequency = ?, start_date = ?, next_day = ? WHERE id = ?').run(JSON.stringify(recurrence), date, formatedNextDate, id);
             } else {
@@ -49,13 +48,25 @@ export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = f
             }
             nextDates.sort((a, b) => a[Object.keys(a)[0]] - b[Object.keys(b)[0]]);
             let minKey = Object.keys(nextDates[0])[0];
-
-            if (skipNext) {
-                minKey = Object.keys(nextDates[1])[0];
+            const dates = JSON.parse(excludedDays.length > 0 ? excludedDays[0]?.date : '[]');;
+            console.log('checkNextDate: ', dates, minKey, nextDates);
+            let nextDate = nextDateByNumber[minKey](todayDate);
+            let formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
+            if (dates.includes(formatedNextDate)) {
+                allNextDates = [];
+                nextDates = [];
+                for (const day of recurrence) {
+                    const potentialNextDate = nextDateByNumber[day](nextDate);
+                    allNextDates.push(potentialNextDate);
+                    const compareDate = potentialNextDate - nextDate;
+                    const difference = Math.round(compareDate / (1000 * 60 * 60 * 24));
+                    nextDates.push({ [day]: difference });
+                }
+                nextDates.sort((a, b) => a[Object.keys(a)[0]] - b[Object.keys(b)[0]]);
+                minKey = Object.keys(nextDates[0])[0];
+                nextDate = nextDateByNumber[minKey](nextDate);
+                formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
             }
-
-            const nextDate = nextDateByNumber[minKey](todayDate);
-            const formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
             if (parseStartDate < now && parsedDate > now) {
                 db.prepare('UPDATE recurrence SET frequency = ?, start_date = ?, next_day = ? WHERE id = ?').run(JSON.stringify(recurrence), date, formatedNextDate, id);
             } else {
@@ -68,6 +79,8 @@ export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = f
                 if (parsedDate > todayDate) {
                     if (planning.id === planningId) { return }
                     db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);
+                } else {
+                    db.prepare('UPDATE planning SET recurrence_id = ? WHERE id = ?').run(0, planning.id);
                 }
             })
             db.prepare('DELETE FROM recurrence WHERE id = ?').run(id);
@@ -111,5 +124,4 @@ export function checkNextDate(date, recurrence, id = 0, planningId, skipNext = f
             return 0;
         }
     }
-
 }

@@ -16,6 +16,45 @@ export const GetHomeData = function (req, res) {
     }
 }
 
+export const GetHomeNotes = function (req, res) {
+    const db = new Database('Database.db');
+    const { date } = req.body;
+    try {
+        const data = db.prepare('SELECT * FROM notes WHERE date = ?').all(date);
+    } catch (err) {
+        console.error('Error while fetching data: ', err);
+        res.status(500).send('Internal server error');
+        db.close();
+        return;
+    }
+    db.close();
+    if (data.length === 0) {
+        res.status(200).json([]);
+    } else {
+        res.status(200).json(data);
+    }
+}
+
+export const AddHomeNote = function (req, res) {
+    const db = new Database('Database.db');
+    const { date, note } = req.body;
+    try {
+        const data = db.prepare('SELECT * FROM notes WHERE date = ?').all(date);
+        if (data.length === 0) {
+            db.prepare('INSERT INTO notes (date, note) VALUES (?, ?)').run(date, note);
+        } else {
+            db.prepare('UPDATE notes SET note = ? WHERE date = ?').run(note, date);
+        }
+    } catch (err) {
+        console.error('Error while adding data: ', err);
+        res.status(500).send('Internal server error');
+        db.close();
+        return;
+    }
+    db.close();
+    res.status(200).send('Data added');
+}
+
 export const DataToAdd = async function (req, res) {
     const { data } = req.body;
     const db = new Database('Database.db');
@@ -86,11 +125,24 @@ export const DeleteData = function (req, res) {
     for (let i = 0; i < data.length; i++) {
         try {
             const line = db.prepare('SELECT * FROM planning WHERE id = ?').all(data[i].id);
-            db.prepare('DELETE FROM planning WHERE id = ?').run(data[i].id);
             if (data[i].deleteRecurrence) {
+                const allDatesRecurrence = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(line[0].recurrence_id);
+                allDatesRecurrence.map((planning) => {
+                    const parsedDate = parse(planning.date, 'dd/MM/yyyy', new Date(), { locale: fr });
+                    if (parsedDate > parse(line[0].date, 'dd/MM/yyyy', new Date(), { locale: fr })) {
+                        db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);
+                    } else {
+                        db.prepare('UPDATE planning SET recurrence_id = ? WHERE id = ?').run(0, planning.id);
+                    }
+                });
                 db.prepare('DELETE FROM recurrence WHERE id = ?').run(line[0].recurrence_id);
-                db.prepare('DELETE FROM planning WHERE recurrence_id = ?').run(line[0].recurrence_id);
+                try {
+                    db.prepare('DELETE FROM excluded_days WHERE recurrence_id = ?').run(line[0].recurrence_id);
+                } catch (err) {
+                    console.error('Error while deleting excluded days: ', err);
+                }
             }
+            db.prepare('DELETE FROM planning WHERE id = ?').run(data[i].id);
         } catch (err) {
             console.error('Error while deleting data: ', err);
             res.status(500).send('Internal server error');

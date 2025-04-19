@@ -4,13 +4,16 @@ import { createTable } from './utils/database.js';
 import planningRouter from './routes/planning.js';
 import driverRouter from './routes/driver.js';
 import settingsRouter from './routes/settings.js';
-import bddmanageRouter from './routes/bddmanage.js';
 import loginRouter from './routes/login.js';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { createUserTable } from './utils/logindb.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 export const sessionMiddleware = session({
     secret: 'secret_key',
@@ -31,6 +34,11 @@ export const corsOptions = cors({
 app.use(corsOptions)
 app.use(cookieParser());
 app.use(sessionMiddleware);
+app.use(express.static(path.join(__dirname, 'dist')));
+
+
+
+
 
 
 createTable();
@@ -44,6 +52,8 @@ app.use('/Home', homeroute)
 app.use('/Plannings', planningRouter);
 app.use('/Planningsdeschauffeurs', driverRouter);
 app.use('/parametres', settingsRouter);
-app.use('/bddmanage', bddmanageRouter);
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 export default app;

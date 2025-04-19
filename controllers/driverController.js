@@ -32,3 +32,20 @@ export const GetDriverPlanning = function (req, res) {
     db.close();
     res.status(200).json(data);
 }
+
+export const GetDriverPlanningByDate = function (req, res) {
+    const db = new Database('Database.db');
+    const { id } = req.params;
+    const { date } = req.body;
+    let data = [];
+    try {
+        data.push(db.prepare('SELECT * FROM planning WHERE driver_id = ? AND date = ?').all(id, date));
+    } catch (err) {
+        console.error('Error while fetching data: ', err);
+        res.status(500).send('Internal server error');
+        db.close();
+        return;
+    }
+    db.close();
+    res.status(200).json(data);
+}
