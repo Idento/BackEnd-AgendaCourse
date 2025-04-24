@@ -19,8 +19,9 @@ export const GetHomeData = function (req, res) {
 export const GetHomeNotes = function (req, res) {
     const db = new Database('Database.db');
     const { date } = req.body;
+    let data;
     try {
-        const data = db.prepare('SELECT * FROM notes WHERE date = ?').all(date);
+        data = db.prepare('SELECT * FROM notes WHERE date = ?').all(date);
     } catch (err) {
         console.error('Error while fetching data: ', err);
         res.status(500).send('Internal server error');

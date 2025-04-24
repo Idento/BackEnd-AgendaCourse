@@ -45,13 +45,13 @@ export const GetPlanningNotes = function (req, res) {
     const db = new Database('Database.db');
     const { dates } = req.body;
     let data = [];
-    for (const date of dates) {
+    for (const date of dates[0]) {
         try {
             const notes = db.prepare('SELECT * FROM notes WHERE date = ?').all(date);
             if (notes.length > 0) {
-                data.push({ date, notes: notes[0].note });
+                data.push({ dates: date, notes: notes[0].note });
             } else {
-                data.push({ date, notes: '' });
+                data.push({ dates: date, notes: '' });
             }
         } catch (err) {
             console.error('Error while fetching notes: ', err);

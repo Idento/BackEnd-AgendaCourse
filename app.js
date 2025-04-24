@@ -11,6 +11,10 @@ import session from 'express-session';
 import { createUserTable } from './utils/logindb.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createSavedTable } from './utils/savedb.js';
+import { savePlanning } from './utils/storeToSaveDB.js';
+import { checkAll } from './utils/checkAll.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,10 +47,13 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 createTable();
 createUserTable();
+createSavedTable();
+savePlanning();
+checkAll();
 
-app.use(json()); // Pour parser les corps des requêtes en JSON
+app.use(json());
 
-// Importez vos routes ici
+
 app.use('/', loginRouter)
 app.use('/Home', homeroute)
 app.use('/Plannings', planningRouter);

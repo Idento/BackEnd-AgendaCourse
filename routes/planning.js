@@ -1,12 +1,14 @@
 import express from 'express';
 import { Router } from 'express';
-import { GetPlanning, AddPlanning, DeletePlanning } from '../controllers/planningController.js';
+import { GetPlanning, AddPlanning, DeletePlanning, GetPlanningNotes, AddPlanningNotes } from '../controllers/planningController.js';
 import { isAuthentified } from '../middlewares/sessionCheck.js';
 
 
 const router = Router();
 
 router.get('/get', isAuthentified, GetPlanning);
+router.post('/getNotes', isAuthentified, GetPlanningNotes);
+router.post('/addNote', isAuthentified, AddPlanningNotes);
 router.post('/add', isAuthentified, AddPlanning);
 router.delete('/delete', isAuthentified, DeletePlanning);
 
