@@ -54,11 +54,11 @@ checkAll();
 app.use(json());
 
 
-app.use('/', loginRouter)
-app.use('/Home', homeroute)
-app.use('/Plannings', planningRouter);
-app.use('/Planningsdeschauffeurs', driverRouter);
-app.use('/parametres', settingsRouter);
+app.use('/api/', loginRouter)
+app.use('/api/Home', homeroute)
+app.use('/api/Plannings', planningRouter);
+app.use('/api/Planningsdeschauffeurs', driverRouter);
+app.use('/api/parametres', settingsRouter);
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });

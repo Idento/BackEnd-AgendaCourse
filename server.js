@@ -2,7 +2,6 @@ import app, { corsOptions, sessionMiddleware } from './app.js'; // Importez la c
 import http from 'http';
 import { Server as SocketIo } from 'socket.io';
 import { frequentHomeUpdate, frequentPlanningUpdate } from './utils/frequentUpdate.js';
-import { checkAll } from './utils/checkAll.js';
 
 const normalizePort = val => {
     const port = parseInt(val, 10);

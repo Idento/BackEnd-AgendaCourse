@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { format, parse, addDays } from "date-fns";
-import { retrieveDate } from "../utils/retrieveDate.js";
+import { retrieveDate, retrieveDateFromDate } from "../utils/retrieveDate.js";
 import { checkAll } from "../utils/checkAll.js";
 import { fr } from "date-fns/locale";
 import { checkNextDate } from "../utils/checkNextDate.js";
@@ -36,6 +36,39 @@ export const GetPlanning = function (req, res) {
     if (error) {
         db.close();
         return
+    }
+    db.close();
+    res.status(200).json(allWeekDays);
+}
+
+export const GetPlanningNextDates = function (req, res) {
+    const { date } = req.body;
+    const db = new Database('Database.db');
+    let allWeekDays = retrieveDateFromDate(date);
+    let error = false
+    let drivers;
+    try {
+        drivers = { drivers: db.prepare('SELECT * FROM driver').all() };
+    } catch (err) {
+        console.error('Error while fetching drivers: ', err);
+        db.close();
+        res.status(500).send('Internal server error');
+        return;
+    }
+    for (let i = 0; i < allWeekDays.length; i++) {
+        try {
+            const data = db.prepare(`SELECT p.*, r.frequency
+                            FROM planning p
+                            LEFT JOIN recurrence r ON p.recurrence_id = r.id
+                            WHERE p.date = ?`).all(allWeekDays[i]);
+            allWeekDays[i] = { date: allWeekDays[i], data: [...data, drivers] }
+        } catch (err) {
+            console.error('Error while fetching planning: ', err);
+            res.status(500).send('Internal server error');
+            error = true
+            db.close();
+            break;
+        }
     }
     db.close();
     res.status(200).json(allWeekDays);
@@ -96,6 +129,9 @@ export const AddPlanning = function (req, res) {
     const { alldata } = req.body;
     const db = new Database('Database.db');
     let allWeekDays = retrieveDate();
+    if (!allWeekDays.includes(alldata[0].date)) {
+        allWeekDays = retrieveDateFromDate(alldata[0].date);
+    }
     let ids = [];
     let error = false;
     let datadb = [];
@@ -113,10 +149,7 @@ export const AddPlanning = function (req, res) {
         let reccurence_id = null; // Initialize the recurrence id
         if (ids.includes(id)) { // If the id is already existing
             const actualLine = datadb.filter((item) => item.id === id); // Get the actual line
-            console.log('actualLine: ', actualLine);
-            console.log(date);
             const oldFrequency = db.prepare('SELECT frequency FROM recurrence WHERE id = ?').get(actualLine[0].recurrence_id);
-            console.log('oldFrequency: ', oldFrequency);
             if (!oldFrequency && frequency.length > 0) {
                 const formatRecurrence = recurrence_id === null ? 0 : recurrence_id;
                 reccurence_id = checkNextDate(date, frequencyFormated, formatRecurrence, id);
@@ -134,7 +167,6 @@ export const AddPlanning = function (req, res) {
             }
         } else {
             let reccurence_id;
-            console.log('date: ', date);
             reccurence_id = checkNextDate(date, frequencyFormated, 0, 0);
             try {
                 db.prepare(`INSERT INTO planning (driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(parseInt(driver_id), date, client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id);
@@ -162,9 +194,7 @@ export const DeletePlanning = function (req, res) {
     let error = false;
     for (let i = 0; i < data.length; i++) {
         try {
-            console.log(data[i].id);
             const line = db.prepare('SELECT * FROM planning WHERE id = ?').all(data[i].id);
-            console.log('line: ', line);
             if (line[0]?.recurrence_id && !data[i].deleteRecurrence && line[0].recurrence_id !== undefined || line[0].recurrence_id !== null || line[0].recurrence_id !== 0) {
                 let recurrence
                 try {
@@ -175,30 +205,25 @@ export const DeletePlanning = function (req, res) {
                 }
                 if (recurrence && line[0].date === recurrence?.next_day) {
                     const frequencyFormated = typeof recurrence.frequency === 'string' ? JSON.parse(recurrence.frequency) : typeof recurrence.frequency === 'number' ? [recurrence.frequency] : recurrence.frequency;
-                    console.log('checkNextDatedelete: ', line[0].date, frequencyFormated, line[0].recurrence_id, line[0].id);
                     checkNextDate(recurrence.next_day, frequencyFormated, line[0].recurrence_id, line[0].id);
                 } else if (recurrence && line[0].date !== recurrence?.next_day && line[0].date !== recurrence?.start_date) {
                     const excludeDays = db.prepare('SELECT * FROM recurrence_excludedays WHERE recurrence_id = ?').all(line[0].recurrence_id);
                     if (excludeDays.length === 0) {
                         const data = [line[0].date]
-                        console.log('first log add exclude: ', data);
                         db.prepare('INSERT INTO recurrence_excludedays (recurrence_id, date) VALUES (?, ?)').run(line[0].recurrence_id, JSON.stringify(data));
                     }
                     else {
                         const data = JSON.parse(excludeDays[0].date);
                         if (!data.includes(line[0].date)) {
                             data.push(line[0].date);
-                            console.log('else log add exclude: ', data);
                             db.prepare('UPDATE recurrence_excludedays SET date = ? WHERE recurrence_id = ?').run(JSON.stringify(data), line[0].recurrence_id);
                         }
                     }
                 }
             }
-            console.log(data[i].deleteRecurrence);
             if (data[i].deleteRecurrence) {
                 const allRecurrence = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(line[0].recurrence_id)
                 allRecurrence.map((planning) => {
-                    console.log('delete', parse(planning.date, 'dd/MM/yyyy', new Date(), { locale: fr }) < parse(line[0].date, 'dd/MM/yyyy', new Date(), { locale: fr }));
                     if (parse(planning.date, 'dd/MM/yyyy', new Date(), { locale: fr }) < parse(line[0].date, 'dd/MM/yyyy', new Date(), { locale: fr })) {
                         db.prepare('UPDATE planning SET recurrence_id = ? WHERE id = ?').run(0, planning.id);
                     } else {

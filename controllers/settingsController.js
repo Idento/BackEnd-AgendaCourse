@@ -27,7 +27,6 @@ export const GetHistoryData = function (req, res) {
     const db = new Database('Database.db');
     let data;
     let drivers;
-    console.log(date);
     try {
         data = db.prepare('SELECT * FROM planning WHERE date = ?').all(date);
     } catch (err) {
@@ -167,7 +166,6 @@ export const DeleteDrivers = function (req, res) {
 
 export const DeleteAccount = function (req, res) {
     const { name } = req.body;
-    console.log(name);
     const db = new Database('user.db');
     try {
         db.prepare('DELETE FROM user WHERE username = ?').run(name);

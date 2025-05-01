@@ -72,9 +72,7 @@ export const DataToAdd = async function (req, res) {
         const { id, driver_id, client_name, start_time, return_time, note, destination, long_distance, frequency } = data[i];
         if (plannings.some(planning => planning.id === id)) {
             const line = plannings.find(planning => planning.id === id);
-            console.log('beforeCheckNextDate: ', date, frequency, line.recurrence_id, id);
             const reccurence_id = checkNextDate(date, frequency, line.recurrence_id === null ? 0 : line.recurrence_id, id);
-            console.log('reccurence_id: ', reccurence_id);
             try {
                 db.prepare(`UPDATE planning SET driver_id = ?, client_name = ?, start_time = ?, return_time = ?, note = ?, destination = ?, long_distance = ?, recurrence_id = ? WHERE id = ?`).run(parseInt(driver_id), client_name, start_time, return_time, note, destination, `${long_distance}`, reccurence_id, id);
             } catch (err) {
@@ -83,7 +81,6 @@ export const DataToAdd = async function (req, res) {
                 break;
             }
         } else {
-            console.log('beforeCheckNextDate else: ', date, frequency, 0, 0);
             const reccurence_id = checkNextDate(date, frequency, 0, 0);
             try {
                 if (frequency.length === 0) {
@@ -108,7 +105,6 @@ export const DataToAdd = async function (req, res) {
     }
     checkAll();
     db.close();
-    console.log('Data added');
     if (lastID && !error) {
         res.status(200).json({ id: lastID });
     } else {
@@ -120,7 +116,6 @@ export const DataToAdd = async function (req, res) {
 
 export const DeleteData = function (req, res) {
     const { data } = req.body;
-    console.log(data);
     const db = new Database('Database.db');
     let error = false;
     for (let i = 0; i < data.length; i++) {

@@ -25,7 +25,6 @@ export function checkNextDate(date, recurrence, id = 0, planningId) {
         const planning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(id);
         const parseStartDate = parse(recurrenceData.start_date, 'dd/MM/yyyy', new Date().toLocaleDateString(), { locale: fr });
         const excludedDays = db.prepare('SELECT * FROM recurrence_excludedays WHERE recurrence_id = ?').all(id);
-        console.log(excludedDays);
         if (recurrence.length === 1) {
             let nextDate = nextDateByNumber[recurrence[0]](todayDate);
 
@@ -49,7 +48,6 @@ export function checkNextDate(date, recurrence, id = 0, planningId) {
             nextDates.sort((a, b) => a[Object.keys(a)[0]] - b[Object.keys(b)[0]]);
             let minKey = Object.keys(nextDates[0])[0];
             const dates = JSON.parse(excludedDays.length > 0 ? excludedDays[0]?.date : '[]');;
-            console.log('checkNextDate: ', dates, minKey, nextDates);
             let nextDate = nextDateByNumber[minKey](todayDate);
             let formatedNextDate = format(nextDate, 'dd/MM/yyyy', { locale: fr });
             if (dates.includes(formatedNextDate)) {
