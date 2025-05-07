@@ -4,8 +4,9 @@ import { fr, pl } from 'date-fns/locale';
 import { parseDate, isSameDay, includesDay, safeDeletePlanning, insertIfNotExists } from './checkAllUtils.js';
 
 
+
 export function checkAll() {
-    console.log('checkAll');
+    console.log('[CHECK] checkAll started.');
     const db = new Database("Database.db");
     const recurrences = db.prepare('SELECT * FROM recurrence').all();
     const excludeDays = db.prepare('SELECT * FROM recurrence_excludedays').all();
@@ -80,8 +81,9 @@ export function checkAll() {
                         const excludeDaysData = excludeDays?.find(exclude => exclude.recurrence_id === recurrence.id);
                         insertIfNotExists(db, nextDay(now), plannings, last, recurrence.id, excludeDaysData?.date ? JSON.parse(excludeDaysData.date) : []);
                     }
+                    const checkPlanning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(recurrence.id);
                     alldates.map(date => {
-                        insertIfNotExists(db, date, plannings, last, recurrence.id);
+                        insertIfNotExists(db, date, checkPlanning, last, recurrence.id);
                     });
                 } else if (frequency.length > 1) {
                     let nextDates = [];
@@ -110,8 +112,9 @@ export function checkAll() {
                     for (const date of allNextDates) {
                         insertIfNotExists(db, date, plannings, last, recurrence.id, exdate);
                     }
+                    const checkPlanning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(recurrence.id);
                     const formatedAllNextDate = allNextDates.map(date => format(date, 'dd/MM/yyyy', { locale: fr }));
-                    for (const line of plannings) {
+                    for (const line of checkPlanning) {
                         if (parse(line.date, 'dd/MM/yyyy', new Date(), { locale: fr }) > parse(recurrence.start_date, 'dd/MM/yyyy', new Date(), { locale: fr }) && !formatedAllNextDate.includes(line.date)) {
                             safeDeletePlanning(db, line, allNextDates, recurrence.start_date);
                         }
@@ -135,6 +138,7 @@ export function checkAll() {
                             }
                         }
                     }
+                    const checkPlanning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(recurrence.id);
                     let startDateLoop = parsedStartDate;
                     let alldates = [];
                     for (let i = 0; i < 4; i++) {
@@ -142,15 +146,15 @@ export function checkAll() {
                         alldates.push(potentialNextDate);
                         startDateLoop = potentialNextDate;
                     }
-                    plannings.map(planning => {
+                    checkPlanning.map(planning => {
                         const formated = format(nextDay(parsedStartDate), 'dd/MM/yyyy', { locale: fr });
-                        if (planning.date > recurrence.start_date && planning.date !== formated && !alldates.some(date => format(date, 'dd/MM/yyyy', { locale: fr }) === planning.date)) {
+                        if (parseDate(planning.date) > parseDate(recurrence.start_date) && planning.date !== formated && !alldates.some(date => format(date, 'dd/MM/yyyy', { locale: fr }) === planning.date)) {
                             safeDeletePlanning(db, planning, alldates, recurrence.start_date);
                         }
                     });
                     alldates.map(date => {
                         const formatedDate = format(date, 'dd/MM/yyyy', { locale: fr });
-                        if (formatedDate !== nextDay(parsedStartDate) && !plannings.some(planning => planning.date === formatedDate)) {
+                        if (formatedDate !== nextDay(parsedStartDate) && !checkPlanning.some(planning => planning.date === formatedDate)) {
                             insertIfNotExists(db, date, plannings, last, recurrence.id, excludeDaysData?.date ? JSON.parse(excludeDaysData.date) : []);
                         }
                     });
@@ -185,9 +189,10 @@ export function checkAll() {
                             }
                         }
                     }
+                    const checkPlanning = db.prepare('SELECT * FROM planning WHERE recurrence_id = ?').all(recurrence.id);
                     for (const date of allNextDates) {
                         if (planningDate.includes(format(date, 'dd/MM/yyyy', { locale: fr })) === false && !exdate?.some(exclude => exclude === format(date, 'dd/MM/yyyy', { locale: fr })) && date > nextDate) {
-                            insertIfNotExists(db, date, plannings, last, recurrence.id, exdate);
+                            insertIfNotExists(db, date, checkPlanning, last, recurrence.id, exdate);
                         }
                     }
                     const formatedAllNextDate = allNextDates.map(date => format(date, 'dd/MM/yyyy', { locale: fr }));
@@ -262,6 +267,6 @@ export function checkAll() {
             }
         }
         db.close();
-        console.log('check all recurrences done');
+        console.log('[CHECK] check all recurrences done');
     }
 }

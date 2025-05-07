@@ -1,3 +1,4 @@
+import './utils/logger.js'
 import express, { json } from 'express';
 import homeroute from './routes/home.js';
 import { createTable } from './utils/database.js';

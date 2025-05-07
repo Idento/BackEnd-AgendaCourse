@@ -67,7 +67,6 @@ io.on('connection', (socket) => {
 
                 socket.intervals['homeDataUpdate'] = setInterval(() => {
                     const data = frequentHomeUpdate();
-                    console.log('homeDataUpdate');
                     socket.emit('homeDataUpdate', data);
                 }, 60000);
             }
