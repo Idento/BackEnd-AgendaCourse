@@ -6,7 +6,7 @@ export function parseDate(dateStr) {
 }
 
 export function isSameDay(date1, date2) {
-    return format(date1, 'dd/MM/yyyy') === format(date2, 'dd/MM/yyyy');
+    return (typeof date1 !== 'string' ? format(date1, 'dd/MM/yyyy') : date1) === (typeof date2 !== 'string' ? format(date2, 'dd/MM/yyyy') : date2);
 }
 
 export function includesDay(list, target) {
