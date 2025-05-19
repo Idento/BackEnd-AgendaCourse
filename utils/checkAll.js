@@ -161,7 +161,6 @@ export function checkAll() {
                 } else if (frequency.length > 1) {
                     let nextDates = [];
                     let allNextDates = [];
-                    const nextDay = nextWeekDay[frequency[0]];
                     for (const day of frequency) {
                         let currentDate = parsedStartDate;
                         for (let i = 0; i < 4; i++) {
@@ -174,6 +173,8 @@ export function checkAll() {
                         }
                     }
                     nextDates.sort((a, b) => a[Object.keys(a)[0]] - b[Object.keys(b)[0]]);
+                    let minKey = Object.keys(nextDates[0])[0];
+                    const nextDay = nextWeekDay[minKey];
                     const planningDate = plannings.map(planning => {
                         return planning.date;
                     })
