@@ -13,6 +13,7 @@ export function savePlanning() {
             try {
                 archiveDB.prepare(`INSERT INTO saved_planning (id, driver_id, date, client_name, start_time, return_time, note, destination, long_distance, recurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
                     .run(planning.id, planning.driver_id, planning.date, planning.client_name, planning.start_time, planning.return_time, planning.note, planning.destination, planning.long_distance, planning.recurrence_id);
+                console.log(`------- [INFO] Planning ID:${planning.id},Date ${planning.date}, Client ${planning.client_name} archived successfully.-------`);
                 db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);
             } catch (error) {
                 console.error("Error archiving planning:", error);

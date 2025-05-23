@@ -76,6 +76,7 @@ export function checkNextDate(date, recurrence, id = 0, planningId) {
                 const parsedDate = parse(planning.date, 'dd/MM/yyyy', new Date(), { locale: fr });
                 if (parsedDate > todayDate) {
                     if (planning.id === planningId) { return }
+                    console.log(`------[INFO CHECKNEXTDATES] Suppression manuel planning ID ${planning.id}, date ${planning.date}, client ${planning.client_name}-------`);
                     db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);
                 } else {
                     db.prepare('UPDATE planning SET recurrence_id = ? WHERE id = ?').run(0, planning.id);

@@ -23,7 +23,7 @@ export function safeDeletePlanning(db, planning, alldates, now) {
     const isNotPlanned = !includesDay(alldates, parsedDate);
 
     if (isFuture && isNotPlanned) {
-        console.log(`[INFO] Suppression planning ID ${planning.id}, date ${planning.date}`);
+        console.log(`------[INFO] Suppression planning ID ${planning.id}, date ${planning.date}, client ${planning.client_name}-------`);
 
         try {
             db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);

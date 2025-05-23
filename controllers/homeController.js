@@ -126,6 +126,7 @@ export const DeleteData = function (req, res) {
                 allDatesRecurrence.map((planning) => {
                     const parsedDate = parse(planning.date, 'dd/MM/yyyy', new Date(), { locale: fr });
                     if (parsedDate > parse(line[0].date, 'dd/MM/yyyy', new Date(), { locale: fr })) {
+                        console.log(`------[INFO] Suppression planning ID ${planning.id}, date ${planning.date}, client ${planning.client_name}-------`);
                         db.prepare('DELETE FROM planning WHERE id = ?').run(planning.id);
                     } else {
                         db.prepare('UPDATE planning SET recurrence_id = ? WHERE id = ?').run(0, planning.id);
@@ -138,6 +139,7 @@ export const DeleteData = function (req, res) {
                     console.error('Error while deleting excluded days: ', err);
                 }
             }
+            console.log(`------[INFO] Suppression manuel planning ID ${line[0].id}, date ${line[0].date}, client ${line[0].client_name}-------`);
             db.prepare('DELETE FROM planning WHERE id = ?').run(data[i].id);
         } catch (err) {
             console.error('Error while deleting data: ', err);
